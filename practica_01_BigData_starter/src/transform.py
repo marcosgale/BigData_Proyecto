@@ -33,13 +33,13 @@ def _read_json(path: Path):
 def transform_countries_profile(source: Source, cfg: Config) -> dict[str, pd.DataFrame]:
     raw_path = RAW / f"{source.id}.json"
     payload = _read_json(raw_path)
-    wanted = {c.iso3 for c in cfg.focus_countries}
+    wanted = {c.iso3 for c in cfg.focus_countries} if cfg.focus_countries else None
 
     countries_rows = []
     language_rows = []
     for item in payload:
         iso3 = item.get("cca3")
-        if iso3 not in wanted:
+        if wanted is not None and iso3 not in wanted:
             continue
         name = item.get("name") or {}
         countries_rows.append(
@@ -104,13 +104,16 @@ def transform_owid_life_expectancy(source: Source, cfg: Config) -> dict[str, pd.
     df = pd.read_csv(raw_path)
     meta = source.meta or {}
     year = str(meta.get("year", "2023"))
-    wanted = {c.iso3 for c in cfg.focus_countries}
+    wanted = {c.iso3 for c in cfg.focus_countries} if cfg.focus_countries else None
     # Columnas OWID: Entity, Code, Year, Life expectancy
     code_col = "Code" if "Code" in df.columns else "code"
     year_col = "Year" if "Year" in df.columns else "year"
     value_col = "Life expectancy" if "Life expectancy" in df.columns else df.columns[-1]
     iso2_by_iso3 = {c.iso3: c.iso2 for c in cfg.focus_countries}
-    sub = df[(df[code_col].isin(wanted)) & (df[year_col].astype(str) == year)]
+    if wanted is not None:
+        sub = df[(df[code_col].isin(wanted)) & (df[year_col].astype(str) == year)]
+    else:
+        sub = df[df[year_col].astype(str) == year]
     rows = []
     for _, r in sub.iterrows():
         iso3 = r[code_col]

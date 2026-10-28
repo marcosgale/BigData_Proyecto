@@ -39,7 +39,7 @@ def extract_source(source: Source, cfg: Config) -> list[dict]:
     rows: list[dict] = []
     now = datetime.now(timezone.utc).isoformat()
 
-    if source.url_template:
+    if source.url_template and cfg.focus_countries:
         targets = cfg.focus_countries
     else:
         targets = [None]

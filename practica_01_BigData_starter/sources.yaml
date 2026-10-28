@@ -5,12 +5,7 @@
 # url_template → data/raw/{id}_{iso2}.{format}
 #   marcadores: {iso2} {iso3}
 
-focus_countries:
-  - { iso2: ES, iso3: ESP }
-  - { iso2: FR, iso3: FRA }
-  - { iso2: DE, iso3: DEU }
-  - { iso2: IT, iso3: ITA }
-  - { iso2: PT, iso3: PRT }
+focus_countries: []
 
 sources:
   - id: countries_profile
