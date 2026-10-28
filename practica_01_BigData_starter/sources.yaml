@@ -32,18 +32,18 @@ sources:
       indicator_label: GDP per capita (current US$)
       unit: USD
 
-  # - id: eurostat_pop
-  #   name: Eurostat — población (demo_pjan)
-  #   url_template: >-
-  #     https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/demo_pjan?format=JSON&lang=en&geo={iso2}&sex=T&age=TOTAL&time=2023
-  #   format: json
-  #   role: indicator
-  #   transformer: eurostat_demo_pjan
-  #   meta:
-  #     indicator_id: demo_pjan
-  #     indicator_label: Population on 1 January
-  #     unit: persons
-  #     time: "2023"
+  - id: eurostat_pop
+    name: Eurostat — población (demo_pjan)
+    url_template: >-
+      https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/demo_pjan?format=JSON&lang=en&geo={iso2}&sex=T&age=TOTAL&time=2023
+    format: json
+    role: indicator
+    transformer: eurostat_demo_pjan
+    meta:
+      indicator_id: demo_pjan
+      indicator_label: Population on 1 January
+      unit: persons
+      time: "2023"
 
   # --- Fuentes 4 y 5 (descomentad una/ambas solo si sustituís a otras;
   #     en la entrega deben quedar exactamente TRES activas) ---
@@ -59,15 +59,15 @@ sources:
       indicator_label: Life expectancy
       unit: years
       year: "2023"
-  #
-  # - id: worldbank_pop
-  #   name: World Bank — población total (SP.POP.TOTL)
-  #   url_template: >-
-  #     https://api.worldbank.org/v2/country/{iso2}/indicator/SP.POP.TOTL?format=json&mrnev=1
-  #   format: json
-  #   role: indicator
-  #   transformer: worldbank_indicator
-  #   meta:
-  #     indicator_id: SP.POP.TOTL
-  #     indicator_label: Population, total
-  #     unit: persons
+  
+  - id: worldbank_pop
+    name: World Bank — población total (SP.POP.TOTL)
+    url_template: >-
+      https://api.worldbank.org/v2/country/{iso2}/indicator/SP.POP.TOTL?format=json&mrnev=1
+    format: json
+    role: indicator
+    transformer: worldbank_indicator
+    meta:
+      indicator_id: SP.POP.TOTL
+      indicator_label: Population, total
+      unit: persons
