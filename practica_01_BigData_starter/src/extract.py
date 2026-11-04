@@ -69,7 +69,11 @@ def _raw_name(
     return f"{source.id}.{source.format}"
 
 
-def _download(url: str, dest: Path) -> tuple[int, int]:
+def _download(
+    url: str,
+    dest: Path,
+    worldbank_page: int | None = None,
+) -> tuple[int, int]:
     """Descarga una URL con reintentos y guarda solo HTTP 200."""
 
     global _last_request_time
@@ -92,6 +96,9 @@ def _download(url: str, dest: Path) -> tuple[int, int]:
             if resp.status_code == 200:
                 if dest.suffix == ".json":
                     json.loads(resp.content.decode("utf-8-sig"))
+
+                    if worldbank_page is not None:
+                        _parse_worldbank(resp.content, worldbank_page)
 
                 elif dest.suffix == ".csv":
                     text = resp.content.decode("utf-8-sig")
@@ -264,7 +271,7 @@ def _extract_worldbank(
                 nbytes = len(content)
 
             else:
-                status, nbytes = _download(url, dest)
+                status, nbytes = _download(url, dest, page)
                 content = dest.read_bytes()
 
             metadata, records = _parse_worldbank(content, page)
