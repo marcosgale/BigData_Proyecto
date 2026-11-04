@@ -26,16 +26,16 @@ sources:
         - indicator_id: SP.DYN.LE00.IN
           indicator_label: Life expectancy at birth, total (years)
           unit: years
-        - indicator_id: EN.ATM.CO2E.PC
-          indicator_label: CO2 emissions (metric tons per capita)
-          unit: metric tons per capita
+        - indicator_id: SP.URB.TOTL.IN.ZS
+          indicator_label: Urban population (% of total population)
+          unit: percent
         - indicator_id: IT.NET.USER.ZS
           indicator_label: Individuals using the Internet (% of population)
           unit: percent
         - indicator_id: SL.UEM.TOTL.ZS
           indicator_label: Unemployment, total (% of total labor force)
           unit: percent
-
+          
   - id: eurostat_pop
     name: Eurostat — población (demo_pjan)
     url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/demo_pjan?format=JSON&lang=en&sex=T&age=TOTAL
