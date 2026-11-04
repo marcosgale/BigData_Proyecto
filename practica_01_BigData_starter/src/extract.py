@@ -159,7 +159,7 @@ def _is_cached(
                 if source.format == "json":
                     json.loads(content.decode("utf-8-sig"))
 
-                    if indicator_id:
+                    if source.transformer == "worldbank_indicator":
                         _parse_worldbank(content, page)
 
                 elif source.format == "csv":
@@ -402,7 +402,10 @@ def extract_source(
         dest = RAW / filename
 
         try:
-            cache_hit = _is_cached(url, dest, source, manifest)
+            cache_hit = _is_cached(
+                url, dest, source, manifest,
+                source.meta.get("indicator_id", ""), 1
+            )
 
             if cache_hit:
                 status = 200
