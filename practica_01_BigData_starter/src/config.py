@@ -37,6 +37,8 @@ class FocusCountry:
 class Config:
     sources: list[Source]
     focus_countries: list[FocusCountry]
+    country_criteria: dict[str, Any] = field(default_factory=dict)
+    code_equivalences: dict[str, str] = field(default_factory=dict)
 
 
 def load_config(path=SOURCES_YAML) -> Config:
@@ -44,4 +46,9 @@ def load_config(path=SOURCES_YAML) -> Config:
         raw = yaml.safe_load(f)
     sources = [Source(**s) for s in raw.get("sources", [])]
     focus = [FocusCountry(**c) for c in raw.get("focus_countries", [])]
-    return Config(sources=sources, focus_countries=focus)
+    return Config(
+        sources=sources,
+        focus_countries=focus,
+        country_criteria=raw.get("country_criteria") or {},
+        code_equivalences=raw.get("code_equivalences") or {},
+    )

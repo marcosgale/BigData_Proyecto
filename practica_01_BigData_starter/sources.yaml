@@ -4,6 +4,22 @@
 
 focus_countries: []
 
+# Criterio de país (lo aplica src/transform.py).
+# Se acepta una entidad del perfil mledoze si independent == true.
+# extra_countries: excepciones aceptadas aunque independent no sea true.
+country_criteria:
+  require_independent: true
+  extra_countries:
+    - UNK   # Kosovo: independent = null en mledoze, el Banco Mundial lo trata como país
+
+# Equivalencias: código que usa la fuente -> iso3 del perfil.
+code_equivalences:
+  XKX: UNK       # Banco Mundial usa XKX para Kosovo
+  OWID_KOS: UNK  # Our World in Data usa OWID_KOS para Kosovo
+  XK: UNK        # Eurostat usa XK para Kosovo
+  EL: GRC        # Eurostat usa EL para Grecia
+  UK: GBR        # Eurostat usa UK para Reino Unido
+
 sources:
   - id: countries_profile
     name: mledoze/countries (perfil e idiomas)
