@@ -1,9 +1,6 @@
-# Cinco fuentes del enunciado. Para la entrega: dejad exactamente TRES
-# activas (comentad o borrad las otras dos) y documentad la elección.
-#
-# url fija     → data/raw/{id}.{format}
-# url_template → data/raw/{id}_{iso2}.{format}
-#   marcadores: {iso2} {iso3}
+
+# Configuración de las cinco fuentes originales.
+# Se conserva el identificador de cada fuente.
 
 focus_countries: []
 
@@ -16,9 +13,8 @@ sources:
     transformer: countries_profile
 
   - id: worldbank_gdp
-    name: World Bank — PIB per cápita (NY.GDP.PCAP.CD)
-    url_template: >-
-      https://api.worldbank.org/v2/country/{iso2}/indicator/NY.GDP.PCAP.CD?format=json&mrnev=1
+    name: World Bank — indicadores WDI
+    url: https://api.worldbank.org/v2/country/all/indicator/
     format: json
     role: indicator
     transformer: worldbank_indicator
@@ -26,11 +22,23 @@ sources:
       indicator_id: NY.GDP.PCAP.CD
       indicator_label: GDP per capita (current US$)
       unit: USD
+      additional_indicators:
+        - indicator_id: SP.DYN.LE00.IN
+          indicator_label: Life expectancy at birth, total (years)
+          unit: years
+        - indicator_id: EN.ATM.CO2E.PC
+          indicator_label: CO2 emissions (metric tons per capita)
+          unit: metric tons per capita
+        - indicator_id: IT.NET.USER.ZS
+          indicator_label: Individuals using the Internet (% of population)
+          unit: percent
+        - indicator_id: SL.UEM.TOTL.ZS
+          indicator_label: Unemployment, total (% of total labor force)
+          unit: percent
 
   - id: eurostat_pop
     name: Eurostat — población (demo_pjan)
-    url_template: >-
-      https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/demo_pjan?format=JSON&lang=en&geo={iso2}&sex=T&age=TOTAL&time=2023
+    url: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/demo_pjan?format=JSON&lang=en&sex=T&age=TOTAL
     format: json
     role: indicator
     transformer: eurostat_demo_pjan
@@ -38,14 +46,10 @@ sources:
       indicator_id: demo_pjan
       indicator_label: Population on 1 January
       unit: persons
-      time: "2023"
 
-  # --- Fuentes 4 y 5 (descomentad una/ambas solo si sustituís a otras;
-  #     en la entrega deben quedar exactamente TRES activas) ---
   - id: owid_life_expectancy
     name: Our World in Data — life expectancy (CSV)
-    url: >-
-      https://ourworldindata.org/grapher/life-expectancy.csv?v=1&csvType=full&useColumnShortNames=false
+    url: https://ourworldindata.org/grapher/life-expectancy.csv?v=1&csvType=full&useColumnShortNames=false
     format: csv
     role: indicator
     transformer: owid_life_expectancy
@@ -53,12 +57,10 @@ sources:
       indicator_id: life_expectancy
       indicator_label: Life expectancy
       unit: years
-      year: "2023"
-  
+
   - id: worldbank_pop
     name: World Bank — población total (SP.POP.TOTL)
-    url_template: >-
-      https://api.worldbank.org/v2/country/{iso2}/indicator/SP.POP.TOTL?format=json&mrnev=1
+    url: https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?format=json
     format: json
     role: indicator
     transformer: worldbank_indicator
