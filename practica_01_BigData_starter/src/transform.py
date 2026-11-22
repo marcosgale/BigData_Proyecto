@@ -45,18 +45,29 @@ def _read_json(path: Path):
 
 # ---------------------------------------------------------------------------
 # 1 + 3. Leer y dar forma (cada fuente a su tabla)
-# Los indicadores salen con `code` (el código tal cual lo usa la fuente) y
-# `entity_name`; el criterio de país se aplica después, en run_transform.
+# Los indicadores salen con `iso3` tal cual lo da la fuente (Eurostat da iso2,
+# el BM da XKX para Kosovo...) y `entity_name`; run_transform lo normaliza
+# y aplica el criterio de país.
+#
+# Si sources.yaml tiene focus_countries o la fuente usa url_template, se
+# mantiene el comportamiento de la Práctica 1 (cinco países, un fichero por país).
 # ---------------------------------------------------------------------------
+
+
+def _focus_iso3(cfg: Config) -> set[str] | None:
+    return {c.iso3 for c in cfg.focus_countries} if cfg.focus_countries else None
 
 
 def transform_countries_profile(source: Source, cfg: Config) -> dict[str, pd.DataFrame]:
     payload = _read_json(RAW / f"{source.id}.json")
+    wanted = _focus_iso3(cfg)
 
     countries_rows = []
     language_rows = []
     for item in payload:
         iso3 = item.get("cca3")
+        if wanted is not None and iso3 not in wanted:
+            continue
         name = item.get("name") or {}
         countries_rows.append(
             {
@@ -80,7 +91,42 @@ def transform_countries_profile(source: Source, cfg: Config) -> dict[str, pd.Dat
     }
 
 
+def _worldbank_por_pais(source: Source, cfg: Config) -> dict[str, pd.DataFrame]:
+    """Práctica 1: un fichero <id>_<iso2>.json por país foco."""
+    rows = []
+    meta = source.meta or {}
+    for country in cfg.focus_countries:
+        path = RAW / f"{source.id}_{country.iso2}.json"
+        if not path.exists():
+            continue
+        payload = _read_json(path)
+        if not isinstance(payload, list) or len(payload) < 2 or not payload[1]:
+            continue
+        for rec in payload[1]:
+            if rec is None:
+                continue
+            rows.append(
+                {
+                    "iso3": country.iso3,
+                    "entity_name": None,
+                    "indicator_id": meta.get("indicator_id", source.id),
+                    "indicator_label": meta.get(
+                        "indicator_label",
+                        (rec.get("indicator") or {}).get("value"),
+                    ),
+                    "year": rec.get("date"),
+                    "value": rec.get("value"),
+                    "unit": meta.get("unit"),
+                    "source_id": source.id,
+                }
+            )
+    return {"indicators": pd.DataFrame(rows)}
+
+
 def transform_worldbank_indicator(source: Source, cfg: Config) -> dict[str, pd.DataFrame]:
+    if source.url_template:
+        return _worldbank_por_pais(source, cfg)
+
     meta = source.meta or {}
     # Indicador principal + adicionales, cada uno con su etiqueta y unidad
     indicators = [meta] + list(meta.get("additional_indicators", []))
@@ -100,7 +146,7 @@ def transform_worldbank_indicator(source: Source, cfg: Config) -> dict[str, pd.D
             for rec in payload[1] or []:
                 rows.append(
                     {
-                        "code": rec.get("countryiso3code"),
+                        "iso3": rec.get("countryiso3code"),
                         "entity_name": (rec.get("country") or {}).get("value"),
                         "indicator_id": ind_id,
                         "indicator_label": ind.get("indicator_label"),
@@ -116,12 +162,18 @@ def transform_worldbank_indicator(source: Source, cfg: Config) -> dict[str, pd.D
 def transform_owid_life_expectancy(source: Source, cfg: Config) -> dict[str, pd.DataFrame]:
     df = pd.read_csv(RAW / f"{source.id}.csv")
     meta = source.meta or {}
-    # Columnas OWID: Entity, Code, Year, Life expectancy. Ahora toda la serie.
+    # Columnas OWID: Entity, Code, Year, Life expectancy.
     value_col = "Life expectancy" if "Life expectancy" in df.columns else df.columns[-1]
+    # Toda la serie, salvo que meta fije un año (como en la Práctica 1)
+    if "year" in meta:
+        df = df[df["Year"].astype(str) == str(meta["year"])]
+    wanted = _focus_iso3(cfg)
+    if wanted is not None:
+        df = df[df["Code"].isin(wanted)]
     out = pd.DataFrame(
         {
             # Los agregados de OWID (continentes, "World"...) vienen sin Code
-            "code": df["Code"],
+            "iso3": df["Code"],
             "entity_name": df["Entity"],
             "indicator_id": meta.get("indicator_id", "life_expectancy"),
             "indicator_label": meta.get("indicator_label", value_col),
@@ -134,7 +186,37 @@ def transform_owid_life_expectancy(source: Source, cfg: Config) -> dict[str, pd.
     return {"indicators": out}
 
 
+def _eurostat_por_pais(source: Source, cfg: Config) -> dict[str, pd.DataFrame]:
+    """Práctica 1: un fichero <id>_<iso2>.json con una sola celda por país foco."""
+    rows = []
+    meta = source.meta or {}
+    for country in cfg.focus_countries:
+        path = RAW / f"{source.id}_{country.iso2}.json"
+        if not path.exists():
+            continue
+        payload = _read_json(path)
+        values = payload.get("value") or {}
+        if not values:
+            continue  # país fuera de cobertura Eurostat
+        rows.append(
+            {
+                "iso3": country.iso3,
+                "entity_name": None,
+                "indicator_id": meta.get("indicator_id", "demo_pjan"),
+                "indicator_label": meta.get("indicator_label", payload.get("label")),
+                "year": meta.get("time"),
+                "value": next(iter(values.values())),
+                "unit": meta.get("unit", "persons"),
+                "source_id": source.id,
+            }
+        )
+    return {"indicators": pd.DataFrame(rows)}
+
+
 def transform_eurostat_demo_pjan(source: Source, cfg: Config) -> dict[str, pd.DataFrame]:
+    if source.url_template:
+        return _eurostat_por_pais(source, cfg)
+
     payload = _read_json(RAW / f"{source.id}.json")
     meta = source.meta or {}
 
@@ -158,7 +240,7 @@ def transform_eurostat_demo_pjan(source: Source, cfg: Config) -> dict[str, pd.Da
             value = payload["value"].get(str(g_pos * n_time + t_pos))
             rows.append(
                 {
-                    "code": geo,
+                    "iso3": geo,  # código geo de Eurostat (iso2); se traduce en run_transform
                     "entity_name": geo_label.get(geo),
                     "indicator_id": meta.get("indicator_id", "demo_pjan"),
                     "indicator_label": meta.get("indicator_label", payload.get("label")),
@@ -209,12 +291,15 @@ def apply_country_criteria(
     extra = set(rules.get("extra_countries", []))
 
     accepted_mask = countries["iso3"].isin(extra)
-    if rules.get("require_independent", True):
+    if cfg.focus_countries:
+        # Práctica 1: los países foco son el criterio
+        accepted_mask |= countries["iso3"].isin(_focus_iso3(cfg))
+    elif rules.get("require_independent", True):
         accepted_mask |= countries["independent"] == True  # noqa: E712 (puede ser None)
     else:
         accepted_mask[:] = True
 
-    accepted = countries[accepted_mask].drop(columns="independent")
+    accepted = countries[accepted_mask].drop(columns="independent", errors="ignore")
     excluded = pd.DataFrame(
         {
             "source_id": "countries_profile",
@@ -244,6 +329,7 @@ def map_indicators_to_iso3(
         return iso3_by_iso2.get(code)  # Eurostat usa iso2
 
     ind = ind.copy()
+    ind["code"] = ind["iso3"]  # el código original, para excluded_entities
     ind["iso3"] = ind["code"].map(to_iso3)
 
     keep = ind["iso3"].isin(accepted_iso3)
