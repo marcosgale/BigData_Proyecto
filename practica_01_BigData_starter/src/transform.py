@@ -8,7 +8,7 @@ Práctica 2 Big Data. Pasos (en este orden):
   5. Huérfanos por fuente e indicador → join_orphans.csv
 
 Salida en data/clean/: countries.parquet, languages.parquet,
-indicators/indicator_id=<id>/*.parquet, excluded_entities.csv, join_orphans.csv.
+indicators/indicator_id=<id>/*.parquet, excluded_entities.csv (source_id, source_code, name, reason), join_orphans.csv.
 También se dejan countries/languages/indicators .csv porque load.py aún los lee.
 
 Para una URL nueva: implementad una función y registradla en TRANSFORMERS
@@ -218,9 +218,9 @@ def apply_country_criteria(
     excluded = pd.DataFrame(
         {
             "source_id": "countries_profile",
-            "code": countries.loc[~accepted_mask, "iso3"],
+            "source_code": countries.loc[~accepted_mask, "iso3"],
             "name": countries.loc[~accepted_mask, "name_common"],
-            "motivo": "no independiente en el perfil (territorio o dependencia)",
+            "reason": "no independiente en el perfil (territorio o dependencia)",
         }
     )
     return accepted.reset_index(drop=True), excluded
@@ -256,9 +256,9 @@ def map_indicators_to_iso3(
     excluded = pd.DataFrame(
         {
             "source_id": dropped["source_id"],
-            "code": dropped["code"],
+            "source_code": dropped["code"],
             "name": dropped["entity_name"],
-            "motivo": motivo,
+            "reason": motivo,
         }
     )
     return ind[keep], excluded
