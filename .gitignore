@@ -12,3 +12,17 @@ cards/*
 informe/*
 !informe/.gitkeep
 logs/
+practica_01_BigData_starter/cards/*
+!practica_01_BigData_starter/cards/.gitkeep
+# Archivos generados de la práctica
+practica_01_BigData_starter/cards/*
+!practica_01_BigData_starter/cards/.gitkeep
+
+practica_01_BigData_starter/data/raw/*
+!practica_01_BigData_starter/data/raw/.gitkeep
+
+practica_01_BigData_starter/data/clean/*
+!practica_01_BigData_starter/data/clean/.gitkeep
+
+practica_01_BigData_starter/data/serving/*
+!practica_01_BigData_starter/data/serving/.gitkeep

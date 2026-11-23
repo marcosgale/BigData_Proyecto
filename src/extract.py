@@ -1,4 +1,3 @@
-
 """Extract: descarga intacta -> data/raw/ + manifiesto.
 
 No transforma. Añadir una fuente nueva = entrada en sources.yaml.
@@ -6,6 +5,7 @@ No transforma. Añadir una fuente nueva = entrada en sources.yaml.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import time
@@ -113,11 +113,18 @@ def _download(
 
                 return resp.status_code, len(resp.content)
 
-            if resp.status_code != 429 and not 500 <= resp.status_code < 600:
-                resp.raise_for_status()
+            # 404: recurso inexistente, no tiene sentido reintentar.
+            if resp.status_code == 404:
+                return 404, 0
 
+            # Reintentar solo errores transitorios (429 y 5xx).
+            if resp.status_code != 429 and not 500 <= resp.status_code < 600:
+                return resp.status_code, 0
+
+            # Tras agotar los reintentos, devolver el status sin lanzar
+            # excepción ni escribir el contenido en data/raw/.
             if attempt == MAX_ATTEMPTS - 1:
-                resp.raise_for_status()
+                return resp.status_code, 0
 
         except (requests.Timeout, requests.ConnectionError):
             if attempt == MAX_ATTEMPTS - 1:
@@ -166,7 +173,10 @@ def _is_cached(
                 if source.format == "json":
                     json.loads(content.decode("utf-8-sig"))
 
-                    if source.transformer == "worldbank_indicator":
+                    if (
+                        source.transformer == "worldbank_indicator"
+                        and not source.url_template
+                    ):
                         _parse_worldbank(content, page)
 
                 elif source.format == "csv":
@@ -236,6 +246,7 @@ def _extract_worldbank(
     indicator_id: str,
     run_id: str,
     manifest: list[dict],
+    force: bool = False,
 ) -> list[dict]:
     """Descarga todas las páginas de un indicador del Banco Mundial."""
 
@@ -260,7 +271,7 @@ def _extract_worldbank(
         dest = RAW / filename
 
         try:
-            cache_hit = _is_cached(
+            cache_hit = False if force else _is_cached(
                 url, dest, source, manifest,
                 indicator_id, page,
             )
@@ -272,6 +283,28 @@ def _extract_worldbank(
 
             else:
                 status, nbytes = _download(url, dest, page)
+
+                if status != 200:
+                    rows.append({
+                        "run_id": run_id,
+                        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                        "source_id": source.id,
+                        "indicator_id": indicator_id,
+                        "url": url,
+                        "http_status": status,
+                        "bytes": 0,
+                        "filename": filename,
+                        "page": page,
+                        "total_pages": total_pages or "",
+                        "expected_records": expected_records or "",
+                        "extracted_records": 0,
+                        "cache_hit": False,
+                        "iso2": "",
+                        "iso3": "",
+                        "note": f"HTTP {status}",
+                    })
+                    break
+
                 content = dest.read_bytes()
 
             metadata, records = _parse_worldbank(content, page)
@@ -366,6 +399,7 @@ def extract_source(
     cfg: Config,
     run_id: str,
     manifest: list[dict],
+    force: bool = False,
 ) -> list[dict]:
     """Descarga una fuente; conserva la lógica original de países."""
 
@@ -373,7 +407,7 @@ def extract_source(
     now = datetime.now(timezone.utc).isoformat()
 
     # Fuentes del Banco Mundial.
-    if source.transformer == "worldbank_indicator":
+    if source.transformer == "worldbank_indicator" and not source.url_template:
         indicators = []
 
         main_indicator = source.meta.get("indicator_id")
@@ -388,7 +422,7 @@ def extract_source(
         for indicator_id in indicators:
             rows.extend(
                 _extract_worldbank(
-                    source, indicator_id, run_id, manifest
+                    source, indicator_id, run_id, manifest, force
                 )
             )
 
@@ -409,7 +443,7 @@ def extract_source(
         dest = RAW / filename
 
         try:
-            cache_hit = _is_cached(
+            cache_hit = False if force else _is_cached(
                 url, dest, source, manifest,
                 source.meta.get("indicator_id", ""), 1
             )
@@ -420,7 +454,7 @@ def extract_source(
             else:
                 status, nbytes = _download(url, dest)
 
-            note = ""
+            note = "" if status == 200 else f"HTTP {status}"
 
         except Exception as exc:
             response = getattr(exc, "response", None)
@@ -451,8 +485,11 @@ def extract_source(
     return rows
 
 
-def run_extract(cfg: Config | None = None) -> Path:
-    """Ejecuta la extracción de todas las fuentes."""
+def run_extract(cfg: Config | None = None, force: bool = False) -> Path:
+    """Ejecuta la extracción de todas las fuentes.
+
+    force=True ignora la caché y vuelve a descargar todos los recursos.
+    """
 
     cfg = cfg or load_config()
     ensure_dirs()
@@ -466,7 +503,7 @@ def run_extract(cfg: Config | None = None) -> Path:
         print(f"[extract] {source.id} — {source.name}")
 
         all_rows.extend(
-            extract_source(source, cfg, run_id, previous_rows)
+            extract_source(source, cfg, run_id, previous_rows, force=force)
         )
 
     # Conserva el manifiesto anterior y añade la nueva ejecución.
@@ -487,9 +524,11 @@ def run_extract(cfg: Config | None = None) -> Path:
     ]
 
     if failures:
+        first_failure = failures[0].get("note", "")
+        detail = f" Primer fallo: {first_failure}." if first_failure else ""
         raise RuntimeError(
-            f"La extracción terminó con {len(failures)} errores. "
-            "Consulta manifest.csv."
+            f"La extracción terminó con {len(failures)} errores."
+            f"{detail} Consulta manifest.csv."
         )
 
     print(f"[extract] ejecución completada: {run_id}")
@@ -498,4 +537,11 @@ def run_extract(cfg: Config | None = None) -> Path:
 
 
 if __name__ == "__main__":
-    run_extract()
+    parser = argparse.ArgumentParser(description="Extracción de datos ETL")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignorar la caché y volver a descargar todas las fuentes",
+    )
+    args = parser.parse_args()
+    run_extract(force=args.force)

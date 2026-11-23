@@ -3,8 +3,9 @@
 Uso (desde practica_01_starter/):
 
     python -m src.pipeline
-    python -m src.pipeline --skip-extract   # reusa data/raw/
+    python -m src.pipeline --skip-extract
     python -m src.pipeline --parquet
+    python -m src.pipeline --force
 """
 
 from __future__ import annotations
@@ -25,6 +26,11 @@ def main(argv: list[str] | None = None) -> None:
         help="No descargar; transformar desde data/raw/ existente",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignorar la caché y forzar una nueva extracción",
+    )
+    parser.add_argument(
         "--parquet",
         action="store_true",
         help="Además del SQLite, escribir Parquet en data/serving/",
@@ -32,7 +38,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if not args.skip_extract:
-        run_extract()
+        run_extract(force=args.force)
     else:
         print("[pipeline] extract omitido (--skip-extract)")
 
