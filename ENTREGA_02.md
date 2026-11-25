@@ -98,7 +98,8 @@ El Parquet ocupa **12 veces menos**. Al ser columnar, los valores repetidos de u
 
 ## 6. Pendientes
 
-- **Hito 1, extract** (lo lleva Marcos): falta `--force`, no reintentar el 404, no guardar en `raw/` respuestas que no sean 200 y anotar el timeout en el manifiesto. Hay 7 tests del Hito 1 en rojo por esto.
-- **Hito 1, fichas:** `build_cards.py` compara todavía con la media regional. Tiene que ser la mediana de la región en el mismo indicador y el mismo año, y decir cuándo falta el dato de ese año (2 tests).
+Cerrado antes de la etiqueta: el extract (`--force`, 404 sin reintento, solo HTTP 200 en `raw/`, fallos de red en el manifiesto) y las fichas (mediana de la región en el mismo indicador y año, y aviso cuando el país no tiene dato ese año). Pasan los tests del Hito 1 (65) y del Hito 2 salvo la etiqueta.
+
+- **Fichas:** el año de la comparación es el último con algún dato en la región. En indicadores recientes (p. ej. Internet en 2025) ese año puede tener pocos países, así que la mediana es frágil. Sería más robusto el último año con, al menos, la mitad de la región informada.
 - **La predicción no se commiteó antes de la primera ejecución completa**, como pide el enunciado. La razonamos con los metadatos de la API, pero el pipeline completo ya se había ejecutado al escribir este documento. Lo dejamos dicho en vez de reordenar commits.
 - `load.py` sigue cargando el SQLite desde los CSV de `clean/`. Por eso el transform escribe CSV además de Parquet. Falta pasar `load.py` a leer Parquet y quitar esos CSV.
