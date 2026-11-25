@@ -25,6 +25,7 @@ def _card_markdown(iso3: str, countries: pd.DataFrame, languages: pd.DataFrame,
     c = countries[countries["iso3"] == iso3].iloc[0]
     langs = languages[languages["iso3"] == iso3]
     inds = indicators[indicators["iso3"] == iso3]
+    with_value = inds[inds["value"].notna()]
 
     lang_lines = (
         "\n".join(
@@ -32,34 +33,39 @@ def _card_markdown(iso3: str, countries: pd.DataFrame, languages: pd.DataFrame,
         )
         or "- (sin idiomas en clean/)"
     )
+    # Con toda la serie histórica, solo el último año con dato de cada indicador
+    latest = with_value.sort_values("year").groupby("indicator_id").tail(1)
     ind_lines = (
         "\n".join(
-            f"- **{r.indicator_label}** ({r.year}): {r.value} {r.unit or ''} "
+            f"- **{r.indicator_label}** ({r.year}): {r.value:,.2f} {r.unit or ''} "
             f"_(fuente: {r.source_id})_"
-            for _, r in inds.iterrows()
+            for _, r in latest.sort_values("indicator_id").iterrows()
         )
         or "- (sin indicadores; posible huérfano del join)"
     )
 
-    # Comparativo simple: media regional del primer indicador disponible
-    comparative = "_Sin indicadores para comparar._"
-    if not inds.empty and "region" in countries.columns:
-        ind_id = inds.iloc[0]["indicator_id"]
-        region = c["region"]
-        peers = countries[countries["region"] == region]["iso3"]
-        peer_vals = indicators[
-            (indicators["iso3"].isin(peers))
-            & (indicators["indicator_id"] == ind_id)
-            & indicators["value"].notna()
-        ]["value"]
-        if not peer_vals.empty:
-            mean_v = peer_vals.astype(float).mean()
-            own = float(inds.iloc[0]["value"])
-            comparative = (
-                f"Respecto a la media de **{region}** en `{ind_id}` "
-                f"({mean_v:,.2f}): este país está en **{own:,.2f}** "
-                f"({'por encima' if own > mean_v else 'por debajo o igual'})."
-            )
+    # Mediana de la región en el mismo indicador y el mismo año: el último año
+    # con algún dato en la región, tenga o no dato este país
+    region = c.get("region")
+    peers = indicators[
+        indicators["iso3"].isin(countries.loc[countries["region"] == region, "iso3"])
+        & indicators["value"].notna()
+    ]
+    comp_lines = []
+    for ind_id, peer in peers.groupby("indicator_id"):
+        year = peer["year"].max()
+        median = peer.loc[peer["year"] == year, "value"].median()
+        own = with_value.loc[
+            (with_value["indicator_id"] == ind_id) & (with_value["year"] == year), "value"
+        ]
+        head = f"- `{ind_id}` ({year}): mediana de **{region}** = {median:,.2f}; "
+        if own.empty:
+            comp_lines.append(head + f"este país sin dato en {year}.")
+        else:
+            v = own.iloc[0]
+            pos = "por encima" if v > median else "por debajo o igual"
+            comp_lines.append(head + f"este país **{v:,.2f}** ({pos}).")
+    comparative = "\n".join(comp_lines) or "_Sin indicadores para comparar._"
 
     return f"""# Ficha país — {c['name_common']} ({iso3})
 
