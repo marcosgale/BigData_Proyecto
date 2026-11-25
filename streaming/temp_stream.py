@@ -1,8 +1,6 @@
 """Sesión 19: query continuo ``temp-stream`` (Spark Structured Streaming).
 
-Starter para copiar a **vuestro** repositorio como ``streaming/temp_stream.py``.
-Hay seis huecos marcados ``TODO`` (T1 a T6). Cuando estén resueltos no debe
-quedar ningún ``TODO`` ni ningún ``NotImplementedError`` en el fichero.
+Starter del profesor con los seis huecos (T1 a T6) ya resueltos.
 
 Contrato de aula (DataLab, ``admin@datalab``):
 
@@ -50,8 +48,13 @@ def construir_fuente(spark: SparkSession, starting_offsets: str) -> DataFrame:
     ``TOPIC`` y ``startingOffsets`` = ``starting_offsets``. Recordad:
     ``startingOffsets`` solo cuenta si el checkpoint aún no tiene progreso.
     """
-    # TODO T1: devolver el DataFrame de streaming leído de Kafka.
-    raise NotImplementedError("T1: fuente Kafka")
+    return (
+        spark.readStream.format("kafka")
+        .option("kafka.bootstrap.servers", BROKER)
+        .option("subscribe", TOPIC)
+        .option("startingOffsets", starting_offsets)
+        .load()
+    )
 
 
 def parsear(df: DataFrame) -> DataFrame:
@@ -62,23 +65,37 @@ def parsear(df: DataFrame) -> DataFrame:
         .add("valor", DoubleType())
         .add("ts", TimestampType())
     )
-    # TODO T2: CAST(value AS STRING), from_json(..., esquema) y quedarse con d.*
-    raise NotImplementedError("T2: parseo JSON")
+    # Si falta un campo (p. ej. "temp" en vez de "valor"), from_json no falla: lo deja nulo
+    return (
+        df.selectExpr("CAST(value AS STRING) AS json")
+        .select(from_json(col("json"), esquema).alias("d"))
+        .select("d.*")
+    )
 
 
 def agregar(ev: DataFrame) -> DataFrame:
     """T3. Estado: watermark de 10 minutos sobre ``ts`` y conteo por
     ``window(ts, "1 minute")`` y ``sensor``."""
-    # TODO T3: withWatermark + groupBy(window, sensor) + count
-    raise NotImplementedError("T3: ventana y watermark")
+    return (
+        ev.withWatermark("ts", "10 minutes")
+        .groupBy(window(col("ts"), "1 minute"), col("sensor"))
+        .count()
+    )
 
 
 def arrancar(agg: DataFrame, checkpoint: str):
     """T4. Sink: console, ``outputMode("update")``, ``checkpointLocation``
     = ``checkpoint``, ``trigger(processingTime="5 seconds")``,
     ``queryName(QUERY_NAME)`` y ``start()``. Devuelve el query."""
-    # TODO T4: writeStream ... start()
-    raise NotImplementedError("T4: writeStream con checkpoint")
+    return (
+        agg.writeStream.format("console")
+        .outputMode("update")
+        .option("checkpointLocation", checkpoint)
+        .option("truncate", "false")
+        .trigger(processingTime="5 seconds")
+        .queryName(QUERY_NAME)
+        .start()
+    )
 
 
 def vigilar_nulos(ev: DataFrame, checkpoint: str):
@@ -86,8 +103,16 @@ def vigilar_nulos(ev: DataFrame, checkpoint: str):
     ``filter(col("valor").isNull())``, sink console en modo ``append``,
     ``checkpointLocation`` = ``checkpoint`` (¡distinta de la de temp-stream!),
     ``queryName(QUERY_NULOS)``, mismo trigger y ``start()``."""
-    # TODO T6: writeStream de los eventos con valor nulo
-    raise NotImplementedError("T6: query temp-nulos")
+    return (
+        ev.filter(col("valor").isNull())
+        .writeStream.format("console")
+        .outputMode("append")
+        .option("checkpointLocation", checkpoint)
+        .option("truncate", "false")
+        .trigger(processingTime="5 seconds")
+        .queryName(QUERY_NULOS)
+        .start()
+    )
 
 
 def main() -> None:
@@ -111,10 +136,15 @@ def main() -> None:
     for query, ruta in ((q, args.checkpoint), (qn, args.checkpoint_nulos)):
         print(f"query={query.name} id={query.id} checkpoint={ruta}")
 
-    # TODO T5: esperar (spark.streams.awaitAnyTermination()) y, si se
-    # interrumpe con Ctrl+C, parar los dos queries con stop() sin borrar
-    # ningún checkpoint.
-    raise NotImplementedError("T5: esperar y parar limpio")
+    # Sin esperar, main() acabaría y los queries con él. Ctrl+C para los dos
+    # queries limpios; los checkpoints se quedan en disco para reanudar.
+    try:
+        spark.streams.awaitAnyTermination()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        q.stop()
+        qn.stop()
 
 
 if __name__ == "__main__":
